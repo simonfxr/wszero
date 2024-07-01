@@ -7,6 +7,7 @@ require (
 	github.com/gorilla/websocket v1.5.2
 	github.com/stretchr/testify v1.9.0
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
+	nhooyr.io/websocket v1.8.11
 )
 
 require (

@@ -211,6 +211,13 @@ func newGobwasDialer(transp *http.Transport) dialer[*GobwasConn] {
 	return dialer
 }
 
+func newNhooyrDialer(transp *http.Transport) dialer[*NhooyrConn] {
+	dialer := dup(NhooyrDefaultDialer)
+	dialer.HTTPClient = dup(dialer.HTTPClient)
+	dialer.HTTPClient.Transport = transp
+	return dialer
+}
+
 func genDialer[T wsconn](newDialer func(*http.Transport) dialer[T]) func(*http.Transport) dialer[wsconn] {
 	return func(t *http.Transport) dialer[wsconn] {
 		dialer := newDialer(t)
@@ -238,6 +245,7 @@ type handshake[C, S wsconn] struct {
 var wsType wsconn = (*wszero.Conn)(nil)
 var websocketType wsconn = (*websocket.Conn)(nil)
 var gobwasType wsconn = (*GobwasConn)(nil)
+var nhooyrType wsconn = (*NhooyrConn)(nil)
 
 var websocketUpgrader = &websocket.Upgrader{
 	WriteBufferPool: &sync.Pool{},
@@ -257,11 +265,19 @@ var clientHandshakes = []handshake[wsconn, wsconn]{
 	{"gobwas", genDialer(newGobwasDialer), gobwasType, genUpgrader(&wszero.Upgrader{}), wsType, nil},
 }
 
+var benchClientHandshakes = append(clientHandshakes,
+	handshake[wsconn, wsconn]{"nhooyr", genDialer(newNhooyrDialer), nhooyrType, genUpgrader(&wszero.Upgrader{}), wsType, nil},
+)
+
 var serverHandshakes = []handshake[wsconn, wsconn]{
 	{"wszero", genDialer(newDialer), wsType, genUpgrader(&wszero.Upgrader{}), wsType, nil},
 	{"websocket", genDialer(newDialer), wsType, genUpgrader(websocketUpgrader), websocketType, nil},
 	{"gobwas", genDialer(newDialer), wsType, genUpgrader(&GobwasUpgrader{}), gobwasType, nil},
 }
+
+var benchServerHandshakes = append(serverHandshakes,
+	handshake[wsconn, wsconn]{"nhooyr", genDialer(newDialer), wsType, genUpgrader(&NhooyrUpgrader{}), nhooyrType, nil},
+)
 
 type runner[T any] interface {
 	Run(string, func(T)) bool

@@ -14,7 +14,7 @@ import (
 
 func BenchmarkWriteMessage(b *testing.B) {
 	for _, size := range []int{0, 1 << 1, 1 << 3, 1 << 5, 1 << 7, 1 << 11, 1 << 15, 1 << 16, 1 << 18} {
-		foreachHandshakes(b, fmt.Sprintf("%%s[msgsz=%d]", size), clientHandshakes, nil, func(b *testing.B, h handshake[wsconn, wsconn]) {
+		foreachHandshakes(b, fmt.Sprintf("%%s[msgsz=%d]", size), benchClientHandshakes, nil, func(b *testing.B, h handshake[wsconn, wsconn]) {
 			b.ReportAllocs()
 			c, s := wsHandshakePair(h.d, h.u)
 			defer c.Close()
@@ -136,7 +136,7 @@ func BenchmarkReadMessage(b *testing.B) {
 
 	b.Run("client", func(b *testing.B) {
 		for _, size := range sizes {
-			foreachHandshakes(b, fmt.Sprintf("%%s[msgsz=%d]", size), clientHandshakes, nil, func(b *testing.B, h handshake[wsconn, wsconn]) {
+			foreachHandshakes(b, fmt.Sprintf("%%s[msgsz=%d]", size), benchClientHandshakes, nil, func(b *testing.B, h handshake[wsconn, wsconn]) {
 				b.ReportAllocs()
 				c, s := wsHandshakePair(h.d, h.u)
 				defer c.Close()
@@ -153,7 +153,7 @@ func BenchmarkReadMessage(b *testing.B) {
 		}
 		b.Run(name, func(b *testing.B) {
 			for _, size := range sizes {
-				foreachHandshakes(b, fmt.Sprintf("%%s[msgsz=%d]", size), serverHandshakes, nil, func(b *testing.B, h handshake[wsconn, wsconn]) {
+				foreachHandshakes(b, fmt.Sprintf("%%s[msgsz=%d]", size), benchServerHandshakes, nil, func(b *testing.B, h handshake[wsconn, wsconn]) {
 					b.ReportAllocs()
 					c, s := wsHandshakePair(h.d, h.u)
 					defer c.Close()
