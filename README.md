@@ -11,6 +11,12 @@ This is a high-performance, lightweight WebSocket library for Go.
 - Customizable buffer pool for efficient memory management
 - High level API heavily inspired by the popular [gorilla/websocket](https://github.com/gorilla/websocket)
 - No third party dependencies
+- Tested with [autobahn-testsuite](https://github.com/crossbario/autobahn-testsuite)
+
+## Missing features
+
+- UTF-8 validation of text messages, this can be handled at the application layer
+- WebSocket compression
 
 ## Installation
 
@@ -105,6 +111,11 @@ func main() {
 ## Documentation
 
 For detailed documentation, please refer to the [GoDoc](https://pkg.go.dev/github.com/simonfxr/wszero) page.
+
+## Autobahn Testsuite
+
+The implementation passes all tests in the [Autobahn Testsuite](https://github.com/crossbario/autobahn-testsuite) except those that are related to the explicitly missing features listed above (UTF-8 validation of text messages and message compression).
+
 
 ## Contributing
 

@@ -1,0 +1,20 @@
+{
+    "outdir": "/report",
+    "servers": [
+        {
+            "agent": "wszero",
+            "url": "ws://127.0.0.1:9001/simple"
+        },
+        {
+            "agent": "wszero-frames1",
+            "url": "ws://127.0.0.1:9001/frames1"
+        },
+        {
+            "agent": "wszero-frames2",
+            "url": "ws://127.0.0.1:9001/frames2"
+        }
+    ],
+    "cases": ["*"],
+    "exclude-cases": ["6.*", "12.*", "13.*"],
+    "exclude-agent-cases": {}
+}
