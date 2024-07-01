@@ -123,49 +123,49 @@ Benchmarks results on an AMD Ryzen 9 7950X using go 1.22.4.
 ### WriteMessage benchmarks
 
 ```
-BenchmarkWriteMessage/wszero[msgsz=2]-12                 6560181               797.5 ns/op         2.51 MB/s           0 B/op          0 allocs/op
-BenchmarkWriteMessage/websocket[msgsz=2]-12              2722363              1403 ns/op           1.43 MB/s          76 B/op          3 allocs/op
-BenchmarkWriteMessage/gobwas[msgsz=2]-12                 1634326              2017 ns/op           0.99 MB/s          40 B/op          3 allocs/op
+BenchmarkWriteMessage/wszero[msgsz=2]-12              797.5 ns/op         2.51 MB/s           0 B/op     0 allocs/op
+BenchmarkWriteMessage/websocket[msgsz=2]-12            1403 ns/op         1.43 MB/s          76 B/op     3 allocs/op
+BenchmarkWriteMessage/gobwas[msgsz=2]-12               2017 ns/op         0.99 MB/s          40 B/op     3 allocs/op
 
-BenchmarkWriteMessage/wszero[msgsz=128]-12               3634166              1069 ns/op         119.72 MB/s           0 B/op          0 allocs/op
-BenchmarkWriteMessage/websocket[msgsz=128]-12            2596389              1421 ns/op          90.08 MB/s          76 B/op          3 allocs/op
-BenchmarkWriteMessage/gobwas[msgsz=128]-12               2338414              1931 ns/op          66.30 MB/s          40 B/op          2 allocs/op
+BenchmarkWriteMessage/wszero[msgsz=128]-12             1069 ns/op       119.72 MB/s           0 B/op     0 allocs/op
+BenchmarkWriteMessage/websocket[msgsz=128]-12          1421 ns/op        90.08 MB/s          76 B/op     3 allocs/op
+BenchmarkWriteMessage/gobwas[msgsz=128]-12             1931 ns/op        66.30 MB/s          40 B/op     2 allocs/op
 
-BenchmarkWriteMessage/wszero[msgsz=32768]-12             1734476              2281 ns/op        14365.28 MB/s          0 B/op          0 allocs/op
-BenchmarkWriteMessage/websocket[msgsz=32768]-12           332754             11990 ns/op         2732.87 MB/s        104 B/op         10 allocs/op
-BenchmarkWriteMessage/gobwas[msgsz=32768]-12              923606              3987 ns/op         8218.34 MB/s         40 B/op          2 allocs/op
+BenchmarkWriteMessage/wszero[msgsz=32768]-12           2281 ns/op      14365.28 MB/s          0 B/op     0 allocs/op
+BenchmarkWriteMessage/websocket[msgsz=32768]-12       11990 ns/op       2732.87 MB/s        104 B/op    10 allocs/op
+BenchmarkWriteMessage/gobwas[msgsz=32768]-12           3987 ns/op       8218.34 MB/s         40 B/op     2 allocs/op
 
-BenchmarkWriteMessage/wszero[msgsz=262144]-12             270555             14829 ns/op        17678.03 MB/s          0 B/op          0 allocs/op
-BenchmarkWriteMessage/websocket[msgsz=262144]-12           33392            114598 ns/op         2287.51 MB/s        328 B/op         66 allocs/op
-BenchmarkWriteMessage/gobwas[msgsz=262144]-12              62836             57441 ns/op         4563.70 MB/s     262186 B/op          3 allocs/op
+BenchmarkWriteMessage/wszero[msgsz=262144]-12         14829 ns/op      17678.03 MB/s          0 B/op     0 allocs/op
+BenchmarkWriteMessage/websocket[msgsz=262144]-12     114598 ns/op       2287.51 MB/s        328 B/op    66 allocs/op
+BenchmarkWriteMessage/gobwas[msgsz=262144]-12         57441 ns/op       4563.70 MB/s     262186 B/op     3 allocs/op
 ```
 
 ### ReadMessage benchmarks
 
 ```
-BenchmarkReadMessage/client/wszero[msgsz=2]-12                  182984581               19.99 ns/op      200.10 MB/s           0 B/op          0 allocs/op
-BenchmarkReadMessage/client/websocket[msgsz=2]-12               24539611               123.2 ns/op        32.47 MB/s         520 B/op          2 allocs/op
-BenchmarkReadMessage/client/gobwas[msgsz=2]-12                   5389633               657.6 ns/op         6.08 MB/s         720 B/op          3 allocs/op
+BenchmarkReadMessage/client/wszero[msgsz=2]-12                        19.99 ns/op     200.10 MB/s         0 B/op      0 allocs/op
+BenchmarkReadMessage/client/websocket[msgsz=2]-12                     123.2 ns/op      32.47 MB/s       520 B/op      2 allocs/op
+BenchmarkReadMessage/client/gobwas[msgsz=2]-12                        657.6 ns/op       6.08 MB/s       720 B/op      3 allocs/op
+                                                              
+BenchmarkReadMessage/client/wszero[msgsz=128]-12                      42.45 ns/op    3109.90 MB/s         0 B/op      0 allocs/op
+BenchmarkReadMessage/client/websocket[msgsz=128]-12                   166.7 ns/op     791.96 MB/s       520 B/op      2 allocs/op
+BenchmarkReadMessage/client/gobwas[msgsz=128]-12                      861.3 ns/op     153.25 MB/s       720 B/op      3 allocs/op
+                                                              
+BenchmarkReadMessage/client/wszero[msgsz=32768]-12                   3008 ns/op     10894.07 MB/s         0 B/op      0 allocs/op
+BenchmarkReadMessage/client/websocket[msgsz=32768]-12               28812 ns/op      1137.43 MB/s    153866 B/op     15 allocs/op
+BenchmarkReadMessage/client/gobwas[msgsz=32768]-12                  26988 ns/op      1214.30 MB/s    154066 B/op     16 allocs/op
 
-BenchmarkReadMessage/client/wszero[msgsz=128]-12                88903011                42.45 ns/op     3109.90 MB/s           0 B/op          0 allocs/op
-BenchmarkReadMessage/client/websocket[msgsz=128]-12             21279950               166.7 ns/op       791.96 MB/s         520 B/op          2 allocs/op
-BenchmarkReadMessage/client/gobwas[msgsz=128]-12                 4163880               861.3 ns/op       153.25 MB/s         720 B/op          3 allocs/op
-
-BenchmarkReadMessage/client/wszero[msgsz=32768]-12               1448168              3008 ns/op       10894.07 MB/s           0 B/op          0 allocs/op
-BenchmarkReadMessage/client/websocket[msgsz=32768]-12             119926             28812 ns/op        1137.43 MB/s      153866 B/op         15 allocs/op
-BenchmarkReadMessage/client/gobwas[msgsz=32768]-12                136917             26988 ns/op        1214.30 MB/s      154066 B/op         16 allocs/op
-
-BenchmarkReadMessage/server-randmask/wszero[msgsz=2]-12                 161669992               22.09 ns/op      362.15 MB/s           0 B/op          0 allocs/op
-BenchmarkReadMessage/server-randmask/websocket[msgsz=2]-12              23931619               137.9 ns/op        58.03 MB/s         520 B/op          2 allocs/op
-BenchmarkReadMessage/server-randmask/gobwas[msgsz=2]-12                  4152672               860.7 ns/op         9.29 MB/s         752 B/op          4 allocs/op
-
-BenchmarkReadMessage/server-randmask/wszero[msgsz=128]-12               83781900                44.20 ns/op     3077.26 MB/s           0 B/op          0 allocs/op
-BenchmarkReadMessage/server-randmask/websocket[msgsz=128]-12            19626692               179.4 ns/op       757.95 MB/s         520 B/op          2 allocs/op
-BenchmarkReadMessage/server-randmask/gobwas[msgsz=128]-12                4046505               895.6 ns/op       151.86 MB/s         752 B/op          4 allocs/op
-
-BenchmarkReadMessage/server-randmask/wszero[msgsz=32768]-12              1250578              2931 ns/op       11182.41 MB/s          0 B/op          0 allocs/op
-BenchmarkReadMessage/server-randmask/websocket[msgsz=32768]-12            117644             30984 ns/op        1057.83 MB/s     153866 B/op         15 allocs/op
-BenchmarkReadMessage/server-randmask/gobwas[msgsz=32768]-12               124272             29046 ns/op        1128.42 MB/s     154098 B/op         17 allocs/op
+BenchmarkReadMessage/server-randmask/wszero[msgsz=2]-12               22.09 ns/op    362.15 MB/s         0 B/op      0 allocs/op
+BenchmarkReadMessage/server-randmask/websocket[msgsz=2]-12           137.9 ns/op      58.03 MB/s       520 B/op      2 allocs/op
+BenchmarkReadMessage/server-randmask/gobwas[msgsz=2]-12              860.7 ns/op       9.29 MB/s       752 B/op      4 allocs/op
+                                                                   
+BenchmarkReadMessage/server-randmask/wszero[msgsz=128]-12             44.20 ns/op   3077.26 MB/s         0 B/op      0 allocs/op
+BenchmarkReadMessage/server-randmask/websocket[msgsz=128]-12         179.4 ns/op     757.95 MB/s       520 B/op      2 allocs/op
+BenchmarkReadMessage/server-randmask/gobwas[msgsz=128]-12            895.6 ns/op     151.86 MB/s       752 B/op      4 allocs/op
+                                                                   
+BenchmarkReadMessage/server-randmask/wszero[msgsz=32768]-12         2931 ns/op     11182.41 MB/s        0 B/op      0 allocs/op
+BenchmarkReadMessage/server-randmask/websocket[msgsz=32768]-12     30984 ns/op      1057.83 MB/s   153866 B/op     15 allocs/op
+BenchmarkReadMessage/server-randmask/gobwas[msgsz=32768]-12        29046 ns/op      1128.42 MB/s   154098 B/op     17 allocs/op
 ```
 
 ## Contributing
