@@ -817,7 +817,6 @@ func NewBufferPool(sizes ...int) BufferPool {
 		sort.Slice(sizes, func(i, j int) bool {
 			return sizes[i] < sizes[j]
 		})
-		sizes = sizesDup
 	} else {
 		sizes = defaultPoolSizes
 	}

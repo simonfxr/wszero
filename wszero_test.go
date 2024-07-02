@@ -674,7 +674,7 @@ func TestBadProtocol(t *testing.T) {
 	})
 }
 
-var useTLS = false
+var useTLS = os.Getenv("WSZERO_TEST_TLS") != ""
 var testCert, _ = generateCertificate()
 
 func generateCertificate() (tls.Certificate, error) {

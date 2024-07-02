@@ -4,5 +4,5 @@
 package tools
 
 import (
-	_ "github.com/wadey/gocovmerge"
+	_ "go.shabbyrobe.org/gocovmerge/cmd/gocovmerge"
 )

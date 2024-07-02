@@ -1,3 +1,6 @@
 /autobahn-image
 /autobahn-report
 /autobahn/report/
+/gocovmerge
+
+*.coverage

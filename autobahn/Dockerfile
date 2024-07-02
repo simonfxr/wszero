@@ -7,11 +7,11 @@ COPY go.sum .
 RUN go mod download
 
 COPY *.go .
-COPY examples ./examples
+COPY examples/autobahn ./examples/autobahn
 
 ENV CGO_ENABLED=0
 ENV GOTOOLCHAIN=local
-RUN go build -o server ./examples/autobahn
+RUN go test -c -coverpkg "./..." ./examples/autobahn/.
 
 # Based on https://github.com/crossbario/autobahn-testsuite/blob/09cfbf74b0c8e335c6fc7df88e5c88349ca66879/docker/Dockerfile
 FROM pypy:2-slim
@@ -31,13 +31,11 @@ VOLUME /report
 WORKDIR /
 EXPOSE 9001 9001
 
-COPY --from=go-builder /gobuild/server ./server
+COPY --from=go-builder /gobuild/autobahn.test ./autobahn.test
 
 COPY autobahn/config /config
 COPY autobahn/entrypoint.sh ./
 RUN chmod +x entrypoint.sh
-
-RUN ls -lah /config
 
 ENTRYPOINT ["./entrypoint.sh"]
 CMD []

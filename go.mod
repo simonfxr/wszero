@@ -6,7 +6,7 @@ require (
 	github.com/gobwas/ws v1.4.0
 	github.com/gorilla/websocket v1.5.2
 	github.com/stretchr/testify v1.9.0
-	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
+	go.shabbyrobe.org/gocovmerge v0.0.0-20230507111327-fa4f82cfbf4d
 	nhooyr.io/websocket v1.8.11
 )
 

@@ -9,3 +9,15 @@ autobahn-report: autobahn-image
 	@cat $@
 	@! test -s $@
 .PHONY: autobahn-report
+
+gocovmerge:
+	go build -o $@ go.shabbyrobe.org/gocovmerge/cmd/gocovmerge
+
+wszero.coverage:
+	go test -coverprofile=$@ ./.
+
+wszero_tls.coverage:
+	WSZERO_TEST_TLS=1 go test -coverprofile=$@ ./.
+
+all.coverage: gocovmerge wszero.coverage wszero_tls.coverage autobahn/report/autobahn.coverage
+	./$^ > $@

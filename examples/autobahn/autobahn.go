@@ -30,7 +30,7 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {
-			log.Fatal(err)
+			log.Print(err)
 		}
 	}()
 
@@ -38,9 +38,9 @@ func main() {
 	http.HandleFunc("/frames1", frameHandler(true))
 	http.HandleFunc("/frames2", frameHandler(false))
 
-	if err := server.ListenAndServe(); err != nil {
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		cancel()
-		log.Fatalf("server %q error: %v", server.Addr, err)
+		log.Printf("server %q error: %v", server.Addr, err)
 	}
 }
 
