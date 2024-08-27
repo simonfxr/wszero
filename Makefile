@@ -11,13 +11,13 @@ autobahn-report: autobahn-image
 .PHONY: autobahn-report
 
 gocovmerge:
-	go build -o $@ go.shabbyrobe.org/gocovmerge/cmd/gocovmerge
+	go build -modfile tests.go.mod -o $@ go.shabbyrobe.org/gocovmerge/cmd/gocovmerge
 
 wszero.coverage:
-	go test -coverprofile=$@ ./.
+	go test -modfile tests.go.mod -coverprofile=$@ ./.
 
 wszero_tls.coverage:
-	WSZERO_TEST_TLS=1 go test -coverprofile=$@ ./.
+	WSZERO_TEST_TLS=1 go test -modfile tests.go.mod -coverprofile=$@ ./.
 
 all.coverage: gocovmerge wszero.coverage wszero_tls.coverage autobahn/report/autobahn.coverage
 	./$^ > $@

@@ -3,15 +3,16 @@ FROM golang:1.21-alpine as go-builder
 WORKDIR /gobuild
 
 COPY go.mod .
-COPY go.sum .
-RUN go mod download
+COPY tests.go.mod .
+COPY tests.go.sum .
+RUN go mod download -modfile tests.go.mod
 
 COPY *.go .
 COPY examples/autobahn ./examples/autobahn
 
 ENV CGO_ENABLED=0
 ENV GOTOOLCHAIN=local
-RUN go test -c -coverpkg "./..." ./examples/autobahn/.
+RUN go test -c -modfile tests.go.mod -coverpkg "./..." ./examples/autobahn/.
 
 # Based on https://github.com/crossbario/autobahn-testsuite/blob/09cfbf74b0c8e335c6fc7df88e5c88349ca66879/docker/Dockerfile
 FROM pypy:2-slim
