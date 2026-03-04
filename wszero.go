@@ -135,6 +135,33 @@ func (e *CloseError) Error() string {
 	return fmt.Sprintf("CloseError(%d) %s", e.Code, e.Text)
 }
 
+// IsCloseError returns true if err is a *CloseError with one of the specified codes.
+func IsCloseError(err error, codes ...int) bool {
+	var ce *CloseError
+	if errors.As(err, &ce) {
+		for _, code := range codes {
+			if ce.Code == code {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// IsUnexpectedCloseError returns true if err is a *CloseError with a code not in the list of expected codes.
+func IsUnexpectedCloseError(err error, expectedCodes ...int) bool {
+	var ce *CloseError
+	if errors.As(err, &ce) {
+		for _, code := range expectedCodes {
+			if ce.Code == code {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
 func def(v, def, low int) int {
 	if v <= 0 {
 		v = def
@@ -538,6 +565,17 @@ func (c *Conn) WriteMessageString(messageType int, s string) error {
 func (c *Conn) WriteControl(messageType int, data []byte, deadline time.Time) error {
 	_, err := c.writeFragment(messageType, 1, data)
 	return err
+}
+
+// FormatCloseMessage formats a close message with the given code and optional reason text.
+func FormatCloseMessage(code int, reason string) []byte {
+	if code == CloseNoStatusReceived {
+		return []byte{}
+	}
+	msg := make([]byte, 2+len(reason))
+	binary.BigEndian.PutUint16(msg, uint16(code))
+	copy(msg[2:], reason)
+	return msg
 }
 
 // WriteMessageBuffers writes a message using the provided buffers avoiding any

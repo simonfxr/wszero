@@ -28,6 +28,42 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestFormatCloseMessage(t *testing.T) {
+	tests := []struct {
+		code   int
+		reason string
+		want   []byte
+	}{
+		{wszero.CloseNormalClosure, "", []byte{0x03, 0xe8}},
+		{wszero.CloseGoingAway, "bye", []byte{0x03, 0xe9, 'b', 'y', 'e'}},
+		{wszero.CloseNoStatusReceived, "", []byte{}},
+		{wszero.CloseProtocolError, "error", []byte{0x03, 0xea, 'e', 'r', 'r', 'o', 'r'}},
+	}
+	for _, tt := range tests {
+		got := wszero.FormatCloseMessage(tt.code, tt.reason)
+		assert.Equal(t, tt.want, got)
+	}
+}
+
+func TestIsCloseError(t *testing.T) {
+	closeErr := &wszero.CloseError{Code: wszero.CloseNormalClosure, Text: "bye"}
+	assert.True(t, wszero.IsCloseError(closeErr, wszero.CloseNormalClosure))
+	assert.True(t, wszero.IsCloseError(closeErr, wszero.CloseGoingAway, wszero.CloseNormalClosure))
+	assert.False(t, wszero.IsCloseError(closeErr, wszero.CloseGoingAway))
+	assert.False(t, wszero.IsCloseError(errors.New("other"), wszero.CloseNormalClosure))
+	assert.False(t, wszero.IsCloseError(fmt.Errorf("wrapped: %w", closeErr), wszero.CloseGoingAway))
+	assert.True(t, wszero.IsCloseError(fmt.Errorf("wrapped: %w", closeErr), wszero.CloseNormalClosure))
+}
+
+func TestIsUnexpectedCloseError(t *testing.T) {
+	closeErr := &wszero.CloseError{Code: wszero.CloseProtocolError, Text: "bad"}
+	assert.True(t, wszero.IsUnexpectedCloseError(closeErr, wszero.CloseNormalClosure))
+	assert.True(t, wszero.IsUnexpectedCloseError(closeErr, wszero.CloseNormalClosure, wszero.CloseGoingAway))
+	assert.False(t, wszero.IsUnexpectedCloseError(closeErr, wszero.CloseProtocolError))
+	assert.False(t, wszero.IsUnexpectedCloseError(errors.New("other"), wszero.CloseNormalClosure))
+	assert.True(t, wszero.IsUnexpectedCloseError(fmt.Errorf("wrapped: %w", closeErr), wszero.CloseNormalClosure))
+}
+
 type wsconn interface {
 	ReadMessage() (int, []byte, error)
 	WriteMessage(int, []byte) error
@@ -496,6 +532,50 @@ func TestPingPong(t *testing.T) {
 		<-done
 	})
 }
+
+func TestCloseMessage(t *testing.T) {
+	foreachHandshakes(t, "", wsAnyHandshakes, nil, func(t *testing.T, h handshake[wsconn, wsconn]) {
+		a := assert.New(t)
+
+		tests := []struct {
+			code   int
+			reason string
+		}{
+			{wszero.CloseNormalClosure, ""},
+			{wszero.CloseGoingAway, "going away"},
+			{wszero.CloseProtocolError, "protocol error"},
+		}
+
+		for _, tt := range tests {
+			c, s := wsHandshakePair(h.d, h.u)
+			defer c.Close()
+			defer s.Close()
+			h.prepare(c, s)
+
+			err := c.WriteMessage(wszero.CloseMessage, wszero.FormatCloseMessage(tt.code, tt.reason))
+			a.NoError(err)
+
+			_, _, err = s.ReadMessage()
+			a.Error(err)
+
+			if _, ok := s.(*wszero.Conn); ok {
+				a.True(wszero.IsCloseError(err, tt.code))
+				var ce *wszero.CloseError
+				if a.True(errors.As(err, &ce)) {
+					a.Equal(tt.code, ce.Code)
+					a.Equal(tt.reason, ce.Text)
+				}
+			} else if _, ok := s.(*websocket.Conn); ok {
+				var ce *websocket.CloseError
+				if a.True(errors.As(err, &ce)) {
+					a.Equal(tt.code, ce.Code)
+					a.Equal(tt.reason, ce.Text)
+				}
+			}
+		}
+	})
+}
+
 
 func TestReadLimit(t *testing.T) {
 	foreachHandshakes(t, "", wsAnyHandshakes, nil, func(t *testing.T, h handshake[wsconn, wsconn]) {
