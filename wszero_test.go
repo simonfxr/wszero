@@ -324,6 +324,25 @@ type variant struct {
 	prepare func(wsconn, wsconn)
 }
 
+type spyBufferPool struct {
+	buf  []byte
+	gets int
+	puts int
+}
+
+func (s *spyBufferPool) GetBuffer(n int) []byte {
+	s.gets++
+	if cap(s.buf) < n {
+		s.buf = make([]byte, max(n, 1024))
+	}
+	return s.buf[:cap(s.buf)]
+}
+
+func (s *spyBufferPool) PutBuffer([]byte) bool {
+	s.puts++
+	return true
+}
+
 func bufPoolVariants(c, s wsconn) (vs []variant) {
 	_, cok := c.(*wszero.Conn)
 	_, sok := s.(*wszero.Conn)
@@ -416,6 +435,68 @@ func writeMessageBuffers(c wsconn, mt int, bs *net.Buffers) error {
 		buf = append(buf, b...)
 	}
 	return c.WriteMessage(mt, buf)
+}
+
+func TestWriteJSON(t *testing.T) {
+	type message struct {
+		Message string `json:"message"`
+		HTML    string `json:"html"`
+		Count   int    `json:"count"`
+	}
+
+	a := assert.New(t)
+	want := message{Message: "hello", HTML: "<b>bold</b>", Count: 7}
+	c, s := wsPair(wszero.ConnOpts{}, wszero.ConnOpts{})
+	defer c.Close()
+	defer s.Close()
+
+	err := c.WriteJSON(want)
+	a.NoError(err)
+	mt, data, err := s.ReadMessage()
+	a.NoError(err)
+	a.Equal(wszero.TextMessage, mt)
+	a.Equal([]byte("{\"message\":\"hello\",\"html\":\"\\u003cb\\u003ebold\\u003c/b\\u003e\",\"count\":7}"), data)
+	putbuf(s, data)
+}
+
+func TestReadJSON(t *testing.T) {
+	type message struct {
+		Message string `json:"message"`
+		Count   int    `json:"count"`
+	}
+
+	a := assert.New(t)
+	c, s := wsPair(wszero.ConnOpts{}, wszero.ConnOpts{})
+	defer c.Close()
+	defer s.Close()
+
+	err := c.WriteMessage(wszero.TextMessage, []byte("{\"message\":\"hello\",\"count\":7}"))
+	a.NoError(err)
+
+	var got message
+	err = s.ReadJSON(&got)
+	a.NoError(err)
+	a.Equal(message{Message: "hello", Count: 7}, got)
+}
+
+func TestReadJSONReturnsBufferPoolData(t *testing.T) {
+	a := assert.New(t)
+	bp := &spyBufferPool{}
+	c, s := wsPair(wszero.ConnOpts{}, wszero.ConnOpts{BufferPool: bp})
+	defer c.Close()
+	defer s.Close()
+
+	err := c.WriteMessage(wszero.TextMessage, []byte("{\"message\":\"hello\"}"))
+	a.NoError(err)
+
+	var got struct {
+		Message string `json:"message"`
+	}
+	err = s.ReadJSON(&got)
+	a.NoError(err)
+	a.Equal("hello", got.Message)
+	a.Equal(1, bp.gets)
+	a.Equal(1, bp.puts)
 }
 
 func TestEcho(t *testing.T) {
@@ -575,7 +656,6 @@ func TestCloseMessage(t *testing.T) {
 		}
 	})
 }
-
 
 func TestReadLimit(t *testing.T) {
 	foreachHandshakes(t, "", wsAnyHandshakes, nil, func(t *testing.T, h handshake[wsconn, wsconn]) {

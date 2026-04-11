@@ -8,6 +8,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -450,6 +451,18 @@ func (c *Conn) ReadMessage() (messageType int, data []byte, err error) {
 	}
 }
 
+// ReadJSON reads the next message and unmarshals its JSON payload into v.
+func (c *Conn) ReadJSON(v any) error {
+	_, data, err := c.ReadMessage()
+	if err != nil {
+		return err
+	}
+	if bp := c.bp; bp != nil && cap(data) > 0 {
+		defer bp.PutBuffer(data)
+	}
+	return json.Unmarshal(data, v)
+}
+
 func (c *Conn) handleControl(b0 byte, data []byte, recycle []byte) error {
 	switch int(b0 ^ 0x80) {
 	case CloseMessage:
@@ -554,6 +567,15 @@ func (c *Conn) writeFragment(messageType int, fin byte, data []byte) (n int64, e
 func (c *Conn) WriteMessage(messageType int, data []byte) error {
 	_, err := c.writeFragment(messageType, 1, data)
 	return err
+}
+
+// WriteJSON writes the JSON encoding of v as a text message.
+func (c *Conn) WriteJSON(v any) error {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return c.WriteMessage(TextMessage, data)
 }
 
 // WriteMessageString writes a string message to the connection.

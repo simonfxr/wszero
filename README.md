@@ -108,6 +108,9 @@ func main() {
 }
 ```
 
+To send JSON as a text message, call `conn.WriteJSON(v)`. To decode the next
+JSON message into a value, call `conn.ReadJSON(&v)`.
+
 ## Documentation
 
 For detailed documentation, please refer to the [GoDoc](https://pkg.go.dev/github.com/simonfxr/wszero) page.
