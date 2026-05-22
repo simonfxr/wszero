@@ -11,7 +11,7 @@ autobahn-report: autobahn-image
 .PHONY: autobahn-report
 
 gocovmerge:
-	go build -modfile go.mod -o $@ go.shabbyrobe.org/gocovmerge/cmd/gocovmerge
+	cd tools && go build -o ../$@ go.shabbyrobe.org/gocovmerge/cmd/gocovmerge
 
 wszero.coverage:
 	go test -modfile go.mod -coverprofile=$@ ./.

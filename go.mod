@@ -6,7 +6,6 @@ require (
 	github.com/gobwas/ws v1.4.0
 	github.com/gorilla/websocket v1.5.2
 	github.com/stretchr/testify v1.9.0
-	go.shabbyrobe.org/gocovmerge v0.0.0-20230507111327-fa4f82cfbf4d
 	nhooyr.io/websocket v1.8.11
 )
 
@@ -17,6 +16,5 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
-	golang.org/x/tools v0.42.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
