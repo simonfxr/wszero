@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"math/bits"
 	"math/rand"
@@ -20,7 +21,7 @@ import (
 	"net/url"
 	"reflect"
 	"runtime"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -81,6 +82,15 @@ type ConnOpts struct {
 	WriteBufferSize int        // The size of the write buffer.
 	ReadLimit       int        // The maximum size of a message read.
 	BufferPool      BufferPool // The buffer pool for reusing buffers, if nil GlobalBufferPool() is used
+
+	// EnableCompression enables permessage-deflate compression (RFC 7692).
+	// When set, the handshake will negotiate compression with the peer.
+	// Only no_context_takeover mode is supported.
+	EnableCompression bool
+
+	// CompressionLevel sets the deflate compression level (flate.HuffmanOnly
+	// through flate.BestCompression). If zero, DefaultCompressionLevel is used.
+	CompressionLevel int
 }
 
 // Conn represents a WebSocket connection.
@@ -93,6 +103,7 @@ type Conn struct {
 	writevbs     [2][]byte // for net.Buffers
 	wb           []byte
 	isClient     byte // 0 or 1
+	compressLvl  byte // 0: disabled, 1..12: level+3 (maps flate levels -2..9)
 	writev       bool
 	closeHandler func(*Conn, int, string)
 	pingHandler  func(*Conn, []byte) error
@@ -140,10 +151,8 @@ func (e *CloseError) Error() string {
 func IsCloseError(err error, codes ...int) bool {
 	var ce *CloseError
 	if errors.As(err, &ce) {
-		for _, code := range codes {
-			if ce.Code == code {
-				return true
-			}
+		if slices.Contains(codes, ce.Code) {
+			return true
 		}
 	}
 	return false
@@ -153,12 +162,7 @@ func IsCloseError(err error, codes ...int) bool {
 func IsUnexpectedCloseError(err error, expectedCodes ...int) bool {
 	var ce *CloseError
 	if errors.As(err, &ce) {
-		for _, code := range expectedCodes {
-			if ce.Code == code {
-				return false
-			}
-		}
-		return true
+		return !slices.Contains(expectedCodes, ce.Code)
 	}
 	return false
 }
@@ -176,14 +180,35 @@ func (o ConnOpts) writeBufSz() int { return def(o.WriteBufferSize, maxCtlFrameSz
 
 func (o ConnOpts) readLimit() int { return def(o.ReadLimit, 16<<20, maxCtlFrameSz) }
 
+func (o ConnOpts) compressionLevel() int {
+	if o.CompressionLevel == 0 {
+		return DefaultCompressionLevel
+	}
+	return max(minCompressionLevel, min(o.CompressionLevel, maxCompressionLevel))
+}
+
+// encodeCompressLvl encodes a compression level into the packed byte.
+// 0 means disabled; 1..12 maps to flate levels -2..9.
+func encodeCompressLvl(level int) byte {
+	return byte(level - minCompressionLevel + 1)
+}
+
 // NewConn wraps a net.Conn in a WebSocket connection without any handshakes.
 // Useful to add framing to an existing connection.
 func (o ConnOpts) NewConn(nc net.Conn, isClient bool) *Conn {
-	c, _ := o.newConn(nc, nil, isClient)
+	c, _ := o.newConn(nc, nil, isClient, false)
 	return c
 }
 
-func (o ConnOpts) newConn(nc net.Conn, br *bufio.Reader, isClient bool) (*Conn, error) {
+// NewCompressedConn wraps a net.Conn in a WebSocket connection with
+// permessage-deflate compression enabled, without performing a handshake.
+// Useful for testing or when compression has been negotiated out of band.
+func (o ConnOpts) NewCompressedConn(nc net.Conn, isClient bool) *Conn {
+	c, _ := o.newConn(nc, nil, isClient, true)
+	return c
+}
+
+func (o ConnOpts) newConn(nc net.Conn, br *bufio.Reader, isClient bool, compressed bool) (*Conn, error) {
 	_ = nc.SetDeadline(time.Time{})
 	wv := false
 	switch nc.(type) {
@@ -204,8 +229,12 @@ func (o ConnOpts) newConn(nc net.Conn, br *bufio.Reader, isClient bool) (*Conn, 
 	}
 	wb := make([]byte, o.writeBufSz())
 	rlim, bp, isClientB := o.readLimit(), globalPool, byte(0)
+	compressLvlB := byte(0)
 	if isClient {
 		isClientB = 1
+	}
+	if compressed {
+		compressLvlB = encodeCompressLvl(o.compressionLevel())
 	}
 	if o.BufferPool != nil {
 		bp = o.BufferPool
@@ -213,7 +242,7 @@ func (o ConnOpts) newConn(nc net.Conn, br *bufio.Reader, isClient bool) (*Conn, 
 	if _, ok := bp.(EmptyBufferPool); ok {
 		bp = nil
 	}
-	c := &Conn{r: r, writev: wv, rlim: rlim, isClient: isClientB, wb: wb, bp: bp}
+	c := &Conn{r: r, writev: wv, rlim: rlim, isClient: isClientB, compressLvl: compressLvlB, wb: wb, bp: bp}
 	c.closeHandler, c.pingHandler, c.pongHandler = handleClose, handlePing, handlePong
 	return c, nil
 }
@@ -309,6 +338,21 @@ func (c *Conn) SetPongHandler(h func(*Conn, []byte) error) {
 // server side.
 func (c *Conn) IsClientSide() bool { return c.isClient != 0 }
 
+// CompressionEnabled reports whether permessage-deflate compression is active
+// on this connection.
+func (c *Conn) CompressionEnabled() bool { return c.compressLvl != 0 }
+
+// SetCompressionLevel changes the compression level for outgoing messages.
+// Setting level to flate.NoCompression (0) disables compression.
+func (c *Conn) SetCompressionLevel(level int) {
+	if level == 0 {
+		c.compressLvl = 0
+		return
+	}
+	level = max(minCompressionLevel, min(level, maxCompressionLevel))
+	c.compressLvl = encodeCompressLvl(level)
+}
+
 // Buffered returns the amount of bytes buffered for reading.
 func (c *Conn) Buffered() int { return c.r.buffered() }
 
@@ -358,16 +402,28 @@ func (c *Conn) abortRead(err error, recycle []byte) error {
 // are done using the returned data, you can put it back into the pool for later
 // reuse.
 func (c *Conn) ReadMessage() (messageType int, data []byte, err error) {
+	compressed := false
 	for {
 		fr := []byte(nil)
 		if fr, err = c.readN(2); err != nil {
 			return messageType, data, err
 		}
 		b1, b0 := fr[1], fr[0]
-		if b0&0x70 != 0 /* unknown reserved bits set */ ||
+		// Check RSV bits: allow RSV1 (0x40) only on the first data frame
+		// when compression is negotiated. RSV1 on continuation frames is
+		// a protocol violation per RFC 7692 §7.1.
+		rsvMask := byte(0x70)
+		if c.compressLvl != 0 && messageType == 0 {
+			rsvMask = 0x30 // allow RSV1 on first frame only
+		}
+		if b0&rsvMask != 0 /* unknown reserved bits set */ ||
 			(messageType == 0 && b0&0xF == 0) /* first frame mustn't be a continuation frame */ ||
 			(messageType != 0 && b0&0xF != 0 && b0&0x8 == 0) /* following frame must be either ctl or continuation */ {
 			return 0, nil, c.abortRead(ErrProtocol, data)
+		}
+		// Track RSV1 on the first data frame
+		if messageType == 0 && b0&0x40 != 0 {
+			compressed = true
 		}
 		mlen := uint64(b1 & 0x7F)
 		n := 4 & int((b1&0x80)>>5) // 4 if mask bit is set, 0 otherwise
@@ -446,6 +502,16 @@ func (c *Conn) ReadMessage() (messageType int, data []byte, err error) {
 			}
 		}
 		if b0&0x80 != 0 {
+			if compressed {
+				decompressed, derr := decompressMessage(data, c.rlim, c.bp)
+				if c.bp != nil && cap(data) > 0 {
+					c.bp.PutBuffer(data)
+				}
+				if derr != nil {
+					return 0, nil, c.abortRead(derr, decompressed)
+				}
+				data = decompressed
+			}
 			return messageType, data, nil
 		}
 	}
@@ -498,8 +564,8 @@ func handlePing(c *Conn, data []byte) error {
 func handlePong(*Conn, []byte) error { return nil }
 
 func (c *Conn) prepareHeader(messageType int, fin byte, n int64, fr []byte) []byte {
-	fr = fr[:16] // front load all bounds checks
-	b0 := byte(messageType&0xF) | byte(fin<<7)
+	fr = fr[:16]                                // front load all bounds checks
+	b0 := byte(messageType&0x4F) | byte(fin<<7) // 0x4F preserves opcode + RSV1 if set
 	b1, msklen := c.isClient<<7, int(c.isClient<<2)
 	for i := range fr { // ensure we have a zero mask
 		fr[i] = 0
@@ -565,7 +631,26 @@ func (c *Conn) writeFragment(messageType int, fin byte, data []byte) (n int64, e
 
 // WriteMessage writes a message to the connection.
 func (c *Conn) WriteMessage(messageType int, data []byte) error {
+	if c.compressLvl != 0 && (messageType == TextMessage || messageType == BinaryMessage) {
+		return c.writeCompressed(messageType, data)
+	}
 	_, err := c.writeFragment(messageType, 1, data)
+	return err
+}
+
+func (c *Conn) writeCompressed(messageType int, data []byte) error {
+	level := int(c.compressLvl) + minCompressionLevel - 1
+	compressed, err := compressMessage(data, level, c.bp)
+	if err != nil {
+		return err
+	}
+	// Write with RSV1 bit set (messageType | 0x40 in the opcode+flags byte)
+	// We pass messageType with the RSV1 flag baked into the top bits by using
+	// a special internal message type marker.
+	_, err = c.writeFragment(messageType|0x40, 1, compressed)
+	if c.bp != nil {
+		c.bp.PutBuffer(compressed)
+	}
 	return err
 }
 
@@ -603,6 +688,33 @@ func FormatCloseMessage(code int, reason string) []byte {
 // WriteMessageBuffers writes a message using the provided buffers avoiding any
 // intermediate buffer copies.
 func (c *Conn) WriteMessageBuffers(messageType int, bs *net.Buffers) (n int64, err error) {
+	if c.compressLvl != 0 && (messageType == TextMessage || messageType == BinaryMessage) {
+		// Gather buffers into a single slice for compression
+		total := 0
+		for _, b := range *bs {
+			total += len(b)
+		}
+		var gathered []byte
+		if bp := c.bp; bp != nil {
+			gathered = bp.GetBuffer(total)
+		}
+		if gathered == nil {
+			gathered = make([]byte, 0, total)
+		} else {
+			gathered = gathered[:0]
+		}
+		for _, b := range *bs {
+			gathered = append(gathered, b...)
+		}
+		err = c.writeCompressed(messageType, gathered)
+		if c.bp != nil {
+			c.bp.PutBuffer(gathered)
+		}
+		if err != nil {
+			return 0, err
+		}
+		return int64(total), nil
+	}
 	return c.writeFragmentBuffers(messageType, 1, bs)
 }
 
@@ -637,6 +749,7 @@ type FrameWriter struct {
 	c           *Conn
 	messageType byte
 	fin         byte
+	cbuf        []byte // compression buffer (only used when conn has compression)
 }
 
 // FrameWriter returns a new FrameWriter for writing a WebSocket message of the
@@ -653,18 +766,32 @@ func (w *FrameWriter) Reset(c *Conn, messageType int) {
 		panic(fmt.Errorf("invalid FrameWriter message type: %d", messageType))
 	}
 	w.c, w.messageType, w.fin = c, byte(messageType), 0
+	w.cbuf = w.cbuf[:0]
 }
 
 // Write writes a single frame to the WebSocket. You should call Final()
 // beforehand if this frame is the last of the current message.
+//
+// When compression is enabled on the connection, data is buffered until
+// Close() is called.
 func (w *FrameWriter) Write(b []byte) (err error) {
 	if w.fin&2 != 0 {
 		return io.EOF
 	}
-	if len(b) > 0 {
-		_, err = w.c.writeFragment(int(w.messageType), w.fin&1, b)
-		w.afterWrite(err)
+	if len(b) == 0 {
+		return nil
 	}
+	if w.c.compressLvl != 0 {
+		w.cbuf = append(w.cbuf, b...)
+		if w.fin&1 != 0 {
+			// Final was called before this write, flush now
+			err = w.flushCompressed()
+			w.afterWrite(err)
+		}
+		return err
+	}
+	_, err = w.c.writeFragment(int(w.messageType), w.fin&1, b)
+	w.afterWrite(err)
 	return err
 }
 
@@ -681,9 +808,26 @@ func (w *FrameWriter) WriteBuffers(bs *net.Buffers) (n int64, err error) {
 	if w.fin&2 != 0 {
 		return 0, io.EOF
 	}
+	if w.c.compressLvl != 0 {
+		for _, b := range *bs {
+			w.cbuf = append(w.cbuf, b...)
+			n += int64(len(b))
+		}
+		if w.fin&1 != 0 {
+			err = w.flushCompressed()
+			w.afterWrite(err)
+		}
+		return n, err
+	}
 	n, err = w.c.writeFragmentBuffers(int(w.messageType), w.fin&1, bs)
 	w.afterWrite(err)
 	return
+}
+
+func (w *FrameWriter) flushCompressed() error {
+	err := w.c.writeCompressed(int(w.messageType), w.cbuf)
+	w.cbuf = w.cbuf[:0]
+	return err
 }
 
 func (w *FrameWriter) afterWrite(err error) {
@@ -701,8 +845,14 @@ func (w *FrameWriter) Final() { w.fin |= 1 }
 // was yet written and marks the writer as closed.
 func (w *FrameWriter) Close() (err error) {
 	if w.fin&2 == 0 { // write an empty final frame?
-		_, err = w.c.writeFragment(int(w.messageType), 1, nil)
-		w.afterWrite(err)
+		if w.c.compressLvl != 0 {
+			// Flush any buffered compressed data
+			err = w.flushCompressed()
+			w.afterWrite(err)
+		} else {
+			_, err = w.c.writeFragment(int(w.messageType), 1, nil)
+			w.afterWrite(err)
+		}
 	}
 	w.fin = 0xFF
 	return
@@ -736,12 +886,21 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, uh http.Heade
 	if akey == "" {
 		return nil, ErrBadHandshake
 	}
-	for k, h := range uh {
-		w.Header()[k] = h
+
+	// Negotiate compression
+	compressed := false
+	if o.EnableCompression {
+		compressed = negotiateCompression(r.Header)
 	}
+
+	maps.Copy(w.Header(), uh)
 	w.Header().Set("Sec-Websocket-Accept", akey)
 	w.Header().Set("Upgrade", "websocket")
 	w.Header().Set("Connection", "upgrade")
+	if compressed {
+		w.Header().Set("Sec-Websocket-Extensions",
+			"permessage-deflate; server_no_context_takeover; client_no_context_takeover")
+	}
 	w.WriteHeader(http.StatusSwitchingProtocols)
 	rc := http.NewResponseController(w)
 	rc.Flush()
@@ -753,7 +912,7 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, uh http.Heade
 		nc.Close()
 		return nil, errors.New("already some bytes written")
 	}
-	c, err := o.newConn(nc, brw.Reader, false)
+	c, err := o.newConn(nc, brw.Reader, false, compressed)
 	if err != nil {
 		nc.Close()
 		return nil, err
@@ -801,6 +960,10 @@ func (d *Dialer) DialContext(ctx context.Context, urlStr string, rh http.Header)
 	binary.NativeEndian.PutUint64(keyBytes[:8], rand.Uint64()) // we don't care about entropy
 	key := base64.StdEncoding.EncodeToString(keyBytes[:])
 	r.Header.Set("Sec-Websocket-Key", key)
+	if d.EnableCompression {
+		r.Header.Set("Sec-Websocket-Extensions",
+			"permessage-deflate; server_no_context_takeover; client_no_context_takeover")
+	}
 	if client == nil {
 		client = &defaultClient
 	}
@@ -820,8 +983,15 @@ func (d *Dialer) DialContext(ctx context.Context, urlStr string, rh http.Header)
 		body.Close()
 		return nil, resp, ErrBadHandshake
 	}
+
+	// Check if server accepted compression
+	compressed := false
+	if d.EnableCompression {
+		compressed = parseAcceptedCompression(resp.Header)
+	}
+
 	nc, br := hijackResponseConn(body.(io.ReadWriteCloser))
-	c, err := d.newConn(nc, br, true)
+	c, err := d.newConn(nc, br, true, compressed)
 	if err != nil {
 		body.Close()
 		return nil, resp, err
@@ -843,7 +1013,7 @@ func hijackResponseConn(rwc io.ReadWriteCloser) (nc net.Conn, br *bufio.Reader) 
 	va := v.Interface()
 	t := v.Type().Elem()
 	p := (*[2]unsafe.Pointer)(unsafe.Pointer(&va))[1]
-	if sf, _ := t.FieldByName("br"); sf.Type == reflect.TypeOf((*bufio.Reader)(nil)) {
+	if sf, _ := t.FieldByName("br"); sf.Type == reflect.TypeFor[*bufio.Reader]() {
 		br = *(**bufio.Reader)(unsafe.Add(p, sf.Offset))
 	}
 	return nc, br
@@ -874,15 +1044,12 @@ func NewBufferPool(sizes ...int) BufferPool {
 		sizesDup := make([]int, len(sizes))
 		copy(sizesDup, sizes)
 		sizes = sizesDup
-		sort.Slice(sizes, func(i, j int) bool {
-			return sizes[i] < sizes[j]
-		})
+		slices.Sort(sizes)
 	} else {
 		sizes = defaultPoolSizes
 	}
 	pools := make([]sync.Pool, len(sizes))
 	for i, sz := range sizes {
-		sz := sz
 		pools[i].New = func() any { return unsafe.SliceData(make([]byte, sz)) }
 	}
 	return &segBufferBool{sizes: sizes, pools: pools}

@@ -81,7 +81,7 @@ func BenchmarkReadMessage(b *testing.B) {
 		n := max(1, 8192/len(frame))
 		frames := make([]byte, n*len(frame))
 		dest := frames
-		for i := 0; i < n; i++ {
+		for range n {
 			dest = dest[copy(dest, frame):]
 		}
 

@@ -45,7 +45,7 @@ func main() {
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
-	conn, err := (&wszero.Upgrader{}).Upgrade(w, r, nil)
+	conn, err := (&wszero.Upgrader{ConnOpts: wszero.ConnOpts{EnableCompression: true}}).Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("upgrade error: %s", err)
 		return
@@ -69,7 +69,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 func frameHandler(final bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		conn, err := (&wszero.Upgrader{}).Upgrade(w, r, nil)
+		conn, err := (&wszero.Upgrader{ConnOpts: wszero.ConnOpts{EnableCompression: true}}).Upgrade(w, r, nil)
 		if err != nil {
 			log.Printf("upgrade error: %s", err)
 			return

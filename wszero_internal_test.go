@@ -16,9 +16,9 @@ func xorMaskBytewise(b []byte, key32 uint32) {
 func TestXorMask(t *testing.T) {
 	t.Parallel()
 	const key = uint32(0xDDCCBBAA)
-	for sz := 0; sz < 1024; sz++ {
+	for sz := range 1024 {
 		b0 := make([]byte, sz+wordSize-1)
-		for algn := 0; algn < wordSize; algn++ {
+		for algn := range wordSize {
 			b := b0[algn:][:sz]
 			xorMaskBytewise(b, key^0x12121212)
 			xorMask(b, key)
