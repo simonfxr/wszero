@@ -11,21 +11,28 @@ autobahn-report: autobahn-image
 .PHONY: autobahn-report
 
 test:
-	go test -modfile interop.go.mod -count=1 -race .
+	go test -count=1 -race .
+	cd interop && go test -count=1 -race .
 .PHONY: test
 
 bench:
-	go test -modfile interop.go.mod -bench=. -benchmem -run=^$$ ./...
+	cd interop && go test -bench=. -benchmem -run=^$$ .
 .PHONY: bench
 
 gocovmerge:
 	cd tools && go build -o ../$@ go.shabbyrobe.org/gocovmerge/cmd/gocovmerge
 
 wszero.coverage:
-	go test -modfile interop.go.mod -coverprofile=$@ ./.
+	go test -coverprofile=$@.root .
+	cd interop && go test -coverpkg=github.com/simonfxr/wszero -coverprofile=../$@.interop .
+	./gocovmerge $@.root $@.interop > $@
+	@rm -f $@.root $@.interop
 
 wszero_tls.coverage:
-	WSZERO_TEST_TLS=1 go test -modfile interop.go.mod -coverprofile=$@ ./.
+	WSZERO_TEST_TLS=1 go test -coverprofile=$@.root .
+	cd interop && WSZERO_TEST_TLS=1 go test -coverpkg=github.com/simonfxr/wszero -coverprofile=../$@.interop .
+	./gocovmerge $@.root $@.interop > $@
+	@rm -f $@.root $@.interop
 
 all.coverage: gocovmerge wszero.coverage wszero_tls.coverage autobahn/report/autobahn.coverage
 	./$^ > $@

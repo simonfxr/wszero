@@ -1,4 +1,4 @@
-package wszero_test
+package interop_test
 
 import (
 	"crypto/rand"

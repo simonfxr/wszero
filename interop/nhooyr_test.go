@@ -1,4 +1,4 @@
-package wszero_test
+package interop_test
 
 import (
 	"context"
@@ -51,3 +51,12 @@ func (d *NhooyrDialer) DialContext(ctx context.Context, url string, _ http.Heade
 	conn, resp, err := websocket.Dial(ctx, url, &d.DialOptions)
 	return (*NhooyrConn)(conn), resp, err
 }
+
+func newNhooyrDialer(transp *http.Transport) dialer[*NhooyrConn] {
+	dialer := dup(NhooyrDefaultDialer)
+	dialer.HTTPClient = dup(dialer.HTTPClient)
+	dialer.HTTPClient.Transport = transp
+	return dialer
+}
+
+var nhooyrType wsconn = (*NhooyrConn)(nil)

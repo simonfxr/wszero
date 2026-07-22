@@ -1,4 +1,4 @@
-package wszero_test
+package interop_test
 
 import (
 	"context"
@@ -53,3 +53,12 @@ func (d *GobwasDialer) DialContext(ctx context.Context, urlStr string, _ http.He
 	}
 	return &GobwasConn{nc, ws.StateClientSide}, nil, nil
 }
+
+func newGobwasDialer(transp *http.Transport) dialer[*GobwasConn] {
+	dialer := dup(GobwasDefaultDialer)
+	dialer.NetDial = transp.DialContext
+	dialer.TLSConfig = transp.TLSClientConfig
+	return dialer
+}
+
+var gobwasType wsconn = (*GobwasConn)(nil)

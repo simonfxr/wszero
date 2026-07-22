@@ -1,10 +1,11 @@
-module github.com/simonfxr/wszero
+module github.com/simonfxr/wszero/interop
 
 go 1.25
 
 require (
 	github.com/gobwas/ws v1.4.0
 	github.com/gorilla/websocket v1.5.2
+	github.com/simonfxr/wszero v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.9.0
 	nhooyr.io/websocket v1.8.11
 )
@@ -18,3 +19,5 @@ require (
 	golang.org/x/sys v0.41.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/simonfxr/wszero => ../
