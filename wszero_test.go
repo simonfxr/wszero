@@ -3,8 +3,12 @@ package wszero_test
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"syscall"
 	"testing"
 
@@ -154,4 +158,135 @@ func TestReadJSONReturnsBufferPoolData(t *testing.T) {
 	a.Equal("hello", got.Message)
 	a.Equal(1, bp.gets)
 	a.Equal(1, bp.puts)
+}
+
+func wsHeaders() http.Header {
+	h := http.Header{}
+	h.Set("Connection", "Upgrade")
+	h.Set("Upgrade", "websocket")
+	h.Set("Sec-Websocket-Version", "13")
+	h.Set("Sec-Websocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+	return h
+}
+
+func TestUpgraderCheckOriginDefault(t *testing.T) {
+	a := assert.New(t)
+	upgrader := &wszero.Upgrader{}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			// error already written by Upgrade or we write it
+			if w.Header().Get("Content-Type") == "" {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			}
+		}
+	}))
+	defer ts.Close()
+
+	// Same origin → allowed
+	req, _ := http.NewRequest("GET", ts.URL+"/ws", nil)
+	maps.Copy(req.Header, wsHeaders())
+	req.Header.Set("Origin", ts.URL)
+	resp, err := ts.Client().Do(req)
+	a.NoError(err)
+	a.Equal(http.StatusSwitchingProtocols, resp.StatusCode)
+	resp.Body.Close()
+
+	// No origin → allowed
+	req, _ = http.NewRequest("GET", ts.URL+"/ws", nil)
+	maps.Copy(req.Header, wsHeaders())
+	resp, err = ts.Client().Do(req)
+	a.NoError(err)
+	a.Equal(http.StatusSwitchingProtocols, resp.StatusCode)
+	resp.Body.Close()
+
+	// Different origin → rejected
+	req, _ = http.NewRequest("GET", ts.URL+"/ws", nil)
+	maps.Copy(req.Header, wsHeaders())
+	req.Header.Set("Origin", "http://evil.com")
+	resp, err = ts.Client().Do(req)
+	a.NoError(err)
+	a.Equal(http.StatusForbidden, resp.StatusCode)
+	resp.Body.Close()
+}
+
+func TestUpgraderCheckOriginCustom(t *testing.T) {
+	a := assert.New(t)
+
+	allowed := []string{"http://allowed.com", "http://also-ok.com"}
+	upgrader := &wszero.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			for _, a := range allowed {
+				if strings.EqualFold(origin, a) {
+					return true
+				}
+			}
+			return false
+		},
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			if w.Header().Get("Content-Type") == "" {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			}
+		}
+	}))
+	defer ts.Close()
+
+	// Allowed origin
+	req, _ := http.NewRequest("GET", ts.URL+"/ws", nil)
+	maps.Copy(req.Header, wsHeaders())
+	req.Header.Set("Origin", "http://allowed.com")
+	resp, err := ts.Client().Do(req)
+	a.NoError(err)
+	a.Equal(http.StatusSwitchingProtocols, resp.StatusCode)
+	resp.Body.Close()
+
+	// Disallowed origin
+	req, _ = http.NewRequest("GET", ts.URL+"/ws", nil)
+	maps.Copy(req.Header, wsHeaders())
+	req.Header.Set("Origin", "http://evil.com")
+	resp, err = ts.Client().Do(req)
+	a.NoError(err)
+	a.Equal(http.StatusForbidden, resp.StatusCode)
+	resp.Body.Close()
+
+	// No origin → also rejected by custom callback (doesn't match allowed list)
+	req, _ = http.NewRequest("GET", ts.URL+"/ws", nil)
+	maps.Copy(req.Header, wsHeaders())
+	resp, err = ts.Client().Do(req)
+	a.NoError(err)
+	a.Equal(http.StatusForbidden, resp.StatusCode)
+	resp.Body.Close()
+}
+
+func TestUpgraderCheckOriginAllowAll(t *testing.T) {
+	a := assert.New(t)
+
+	upgrader := &wszero.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			if w.Header().Get("Content-Type") == "" {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			}
+		}
+	}))
+	defer ts.Close()
+
+	// Any origin allowed
+	req, _ := http.NewRequest("GET", ts.URL+"/ws", nil)
+	maps.Copy(req.Header, wsHeaders())
+	req.Header.Set("Origin", "http://anything.example.org")
+	resp, err := ts.Client().Do(req)
+	a.NoError(err)
+	a.Equal(http.StatusSwitchingProtocols, resp.StatusCode)
+	resp.Body.Close()
 }

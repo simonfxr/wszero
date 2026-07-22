@@ -119,6 +119,11 @@ type Dialer struct {
 // Upgrader specifies parameters for upgrading an HTTP connection to a WebSocket connection.
 type Upgrader struct {
 	ConnOpts // The connection options.
+
+	// CheckOrigin returns true if the request Origin header is acceptable.
+	// If nil, a safe default is used: return false if the Origin request header
+	// is present and the origin host is not equal to the request Host header.
+	CheckOrigin func(r *http.Request) bool
 }
 
 // CloseError represents a close message.
@@ -887,6 +892,15 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, uh http.Heade
 		return nil, ErrBadHandshake
 	}
 
+	checkOrigin := u.CheckOrigin
+	if checkOrigin == nil {
+		checkOrigin = checkSameOrigin
+	}
+	if !checkOrigin(r) {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return nil, ErrBadHandshake
+	}
+
 	// Negotiate compression
 	compressed := false
 	if o.EnableCompression {
@@ -918,6 +932,39 @@ func (u *Upgrader) Upgrade(w http.ResponseWriter, r *http.Request, uh http.Heade
 		return nil, err
 	}
 	return c, nil
+}
+
+// checkSameOrigin returns true if the Origin header is absent or its host
+// matches the request Host header (ASCII case-insensitive per RFC 4790).
+func checkSameOrigin(r *http.Request) bool {
+	origin := r.Header["Origin"]
+	if len(origin) == 0 {
+		return true
+	}
+	u, err := url.Parse(origin[0])
+	if err != nil {
+		return false
+	}
+	return asciiEqualFold(u.Host, r.Host)
+}
+
+// asciiEqualFold returns true if s and t are equal under ASCII case folding.
+func asciiEqualFold(s, t string) bool {
+	if len(s) != len(t) {
+		return false
+	}
+	lower := func(c byte) byte {
+		if 'A' <= c && c <= 'Z' {
+			return c + ('a' - 'A')
+		}
+		return c
+	}
+	for i := range len(s) {
+		if lower(s[i]) != lower(t[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 var defaultClient = http.Client{

@@ -10,7 +10,7 @@ COPY *.go ./
 COPY examples/autobahn ./examples/autobahn
 
 ENV CGO_ENABLED=0
-RUN go test -c -coverpkg "./..." ./examples/autobahn/.
+RUN go test -c -tags autobahn -coverpkg "./..." ./examples/autobahn/.
 
 FROM crossbario/autobahn-testsuite:latest
 
